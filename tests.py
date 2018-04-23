@@ -20,6 +20,47 @@ class APITests(unittest.TestCase):
         db.drop_all()
         self.app_context.pop()
 
+    def test_confirm_code(self):
+        user = User(phone_number='+12345678999',
+                    start_hour=8,
+                    end_hour=22)
+        db.session.add(user)
+        db.session.commit()
+
+        request_body = {'code': user.code}
+        response = self.client.post(
+            f'/api/phone-number/{user.phone_number}/confirm', data=request_body)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(user.is_pending)
+
+    def test_confirm_code_with_mismatch_codes(self):
+        user = User(phone_number='+12345678999',
+                    start_hour=8,
+                    end_hour=22)
+        db.session.add(user)
+        db.session.commit()
+
+        request_body = {'code': 'invalid code'}
+        response = self.client.post(
+            f'/api/phone-number/{user.phone_number}/confirm', data=request_body)
+        response_body = json.loads(response.data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response_body['message'], 'Mismatch codes.')
+        self.assertTrue(user.is_pending)
+
+    def test_confirm_code_with_unregistered_phone_number(self):
+        request_body = {'code': '123456'}
+        unregistered_phone_number = '+11111111111'
+        response = self.client.post(
+            f'/api/phone-number/{unregistered_phone_number}/confirm', data=request_body)
+        response_body = json.loads(response.data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response_body['message'],
+                         'Phone number has not been registered.')
+
     @patch('app.api.create_twilio_client')
     def test_register(self, twilio_client):
         request_body = {

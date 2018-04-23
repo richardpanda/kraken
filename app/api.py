@@ -1,12 +1,27 @@
 from app import db
 from flask import Blueprint, current_app, jsonify, make_response, request
 from sqlalchemy import exists
-from twilio.rest import Client
 
 from .models import User
 from .twilio import create_twilio_client
 
 api = Blueprint('api', __name__)
+
+
+@api.route('/phone-number/<string:phone_number>/confirm', methods=['POST'])
+def confirm_code(phone_number):
+    user = db.session.query(User).filter_by(phone_number=phone_number).first()
+
+    if user is None:
+        message = 'Phone number has not been registered.'
+        return make_response(jsonify({'message': message}), 400)
+
+    if user.code != request.form['code']:
+        return make_response(jsonify({'message': 'Mismatch codes.'}), 400)
+
+    user.is_pending = False
+    db.session.commit()
+    return make_response(jsonify({}), 200)
 
 
 @api.route('/register', methods=['POST'])
